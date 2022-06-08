@@ -1,26 +1,19 @@
 # local-ethernauts
 
-This challenge is based on https://ethernaut.openzeppelin.com/
+This repo is fork of https://github.com/0xMacro/local-ethernauts, which is in turn based on the challenges here https://ethernaut.openzeppelin.com/.
 
-# Setup
+## Solution Notes
 
-1. Get all the dependencies installed with `yarn install`
-2. Compile all contracts by running `npx hardhat compile`
-3. Run a local node by running `npx hardhat node`
+1. **CoinFlip**: CoinFlip's random selection logic is based on block number. If we call the victim from the attacking contract, the call to the attacker and the victim will execute in the same block number. So, we just need to duplicate the victim's random selection logic in the attacking contract, and we can deterministically guess the selected value.
 
-# How to solve each level
+2. **Delegation**: We want to call the `pwn()` function on the Delegate contract to gain ownership. The victim contract will forward our calls to Delegate. We can't call Delegate.pwn() directly, but we can use ABI encoding to set up the call which will be forwarded.
 
-- If you look inside the `contracts/` directory you'll find 8 levels for you to solve!
-- Each level directory consists of the same structure, let's check out the first one to illustrate this:
-  - **CoinFlip.sol**: This is the contract you're supposed to hack!
-  - **AttackingCoinFlip.sol**: This is the malicious contract where you'll code the logic to exploit the vulnerable contract!
-  - **CoinFlip.test.ts**: This is the file where you'll be able to test if the contract has been breached
-  - **CoinFlipHelper.ts**: Not all challenges have this `Helper` file! Only the ones that require you to use `ethers` to interact with your contract do, which you can do right here! This function is already imported into the tests, so don't worry about anything other than coding!
-  - And finally, the **README**. On this one you'll get all level instructions!
-- After you're done writing your hack, run the following command to run the tests and see if you succesfully breached the contract:
-  - `npx hardhat test contracts/{contract directory}/{contract name}.test.ts`
-  - Example: `npx hardhat test "contracts/1. CoinFlip/CoinFlip.test.ts"`
+3. **Force**: Even though the victim contract isn't directly payable, we can transfer funds to the victim by first funding the attacking contract and then self-destructing it.
 
-# Helpful Tip
+4. **Vault**: All state variables, including private ones, are stored in 32-bit slots in contract storage. By looking at the order and size of variable declaration in the victim contract, we can deduce which slot will store the variable, and then we can use `ethers` to access the storage directly and read the value of the private variable.
 
-- You can console.log in solidity using hardhat! Read here for more details: https://hardhat.org/tutorial/debugging-with-hardhat-network.html
+5. **King**: First, the attacking contract makes itself king. When the victim tries to become king, the contract will try to pay out to the attacking contract before crowning the victim as king. By forcibly reverting the transaction in the attacking contract's default payable function, the change of king will always fail, and the attacker remains king.
+
+6. **Reentrance**: First, the attacker makes a legitimate deposit in the victim contract. When the attacker withdraws, the victim contract will transfer funds and then decrement the attacker's balance. However, we insert a loop into the attacker's payable function will which in turn initiate more withdrawls. Since the victim doesn't decrement balance until the first withdrawl completes, the attacker's looped withdrawls will all process successfully until the victim is completely drained of funds.
+
+7. **Denial**: When a withdrawl is initiated, the victim first transfers funds to the attacker and then to the owner. If the attacker contract reverts the transaction, the victim contract will ignore the error and continue with the transfer to the owner, which is intended to the prevent the attacker from disrupting the owner's withdrawl. However, the attacker can run an infinite loop in its default payable function to drain the gas on the withdrawl call, so the owner's withdrawl never gets executed.
